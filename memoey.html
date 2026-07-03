@@ -1,0 +1,443 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sequence Memory Game</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f0f13;
+    color: #e8e8f0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  #app {
+    width: 100%;
+    max-width: 460px;
+  }
+
+  /* Header */
+  header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  header h1 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 4px;
+  }
+  header p {
+    font-size: 26px;
+    font-weight: 700;
+    color: #e8e8f0;
+    letter-spacing: -0.5px;
+  }
+
+  /* Scoreboard */
+  #scoreboard {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 1.5rem;
+  }
+  .stat-card {
+    background: #1a1a24;
+    border: 1px solid #2a2a38;
+    border-radius: 10px;
+    padding: 10px 12px;
+    text-align: center;
+  }
+  .stat-card .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #666;
+    margin-bottom: 4px;
+  }
+  .stat-card .value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #e8e8f0;
+    line-height: 1;
+  }
+  .stat-card.highlight .value { color: #7c6fff; }
+
+  /* Status + timer */
+  #status-wrap { margin-bottom: 1rem; }
+  #status {
+    text-align: center;
+    font-size: 14px;
+    color: #888;
+    min-height: 20px;
+    margin-bottom: 10px;
+    transition: color 0.3s;
+  }
+  #status.active { color: #e8e8f0; }
+  #status.correct { color: #4ade80; }
+  #status.wrong   { color: #f87171; }
+
+  #timer-track {
+    height: 5px;
+    background: #1a1a24;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  #timer-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: #4ade80;
+    transition: width 0.1s linear, background 0.4s;
+  }
+
+  /* Game grid */
+  #grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+
+  .pad {
+    height: 130px;
+    border-radius: 16px;
+    border: none;
+    cursor: pointer;
+    font-size: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: filter 0.1s, transform 0.08s, box-shadow 0.1s;
+    position: relative;
+    outline: none;
+  }
+  .pad:focus-visible { box-shadow: 0 0 0 3px #7c6fff; }
+  .pad[data-i="0"] { background: #1a3560; }
+  .pad[data-i="1"] { background: #163d28; }
+  .pad[data-i="2"] { background: #3d2e10; }
+  .pad[data-i="3"] { background: #3d1a1a; }
+
+  .pad.lit[data-i="0"] { background: #378ADD; box-shadow: 0 0 24px #378ADD66; filter: brightness(1.2); transform: scale(0.97); }
+  .pad.lit[data-i="1"] { background: #22c55e; box-shadow: 0 0 24px #22c55e66; filter: brightness(1.2); transform: scale(0.97); }
+  .pad.lit[data-i="2"] { background: #f59e0b; box-shadow: 0 0 24px #f59e0b66; filter: brightness(1.2); transform: scale(0.97); }
+  .pad.lit[data-i="3"] { background: #ef4444; box-shadow: 0 0 24px #ef444466; filter: brightness(1.2); transform: scale(0.97); }
+
+  .pad.wrong { animation: shake 0.35s ease; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20%      { transform: translateX(-8px); }
+    60%      { transform: translateX(8px); }
+    80%      { transform: translateX(-4px); }
+  }
+
+  .pad-symbol { pointer-events: none; opacity: 0.5; transition: opacity 0.1s; }
+  .pad.lit .pad-symbol { opacity: 1; }
+
+  /* Overlay (game over screen) */
+  #overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.82);
+    border-radius: 16px;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 6px;
+    text-align: center;
+    padding: 1rem;
+  }
+  #overlay.show { display: flex; }
+  #overlay .over-title { font-size: 18px; font-weight: 700; color: #e8e8f0; }
+  #overlay .over-sub   { font-size: 13px; color: #888; }
+
+  #grid-wrap { position: relative; }
+
+  /* Controls */
+  #btn-start {
+    width: 100%;
+    padding: 13px;
+    font-size: 15px;
+    font-weight: 600;
+    background: #7c6fff;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.08s;
+    letter-spacing: 0.02em;
+  }
+  #btn-start:hover   { background: #6b5ce7; }
+  #btn-start:active  { transform: scale(0.98); }
+  #btn-start:disabled { background: #2a2a38; color: #555; cursor: default; }
+
+  /* Sequence preview dots */
+  #seq-dots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 1rem;
+    min-height: 10px;
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #2a2a38;
+    transition: background 0.2s;
+  }
+  .dot.done  { background: #7c6fff; }
+  .dot.next  { background: #e8e8f0; }
+
+  /* Difficulty label */
+  #diff-label {
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #555;
+    margin-bottom: 0.5rem;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Memory Training</h1>
+    <p>Sequence Game</p>
+  </header>
+
+  <div id="scoreboard">
+    <div class="stat-card"><div class="label">Score</div><div class="value" id="score">0</div></div>
+    <div class="stat-card highlight"><div class="label">Round</div><div class="value" id="round">—</div></div>
+    <div class="stat-card"><div class="label">Best</div><div class="value" id="best">0</div></div>
+  </div>
+
+  <div id="status-wrap">
+    <div id="status">Press start to begin</div>
+    <div id="timer-track"><div id="timer-fill" style="width:100%"></div></div>
+  </div>
+
+  <div id="seq-dots"></div>
+  <div id="diff-label" style="display:none"></div>
+
+  <div id="grid-wrap">
+    <div id="grid">
+      <button class="pad" data-i="0" aria-label="Blue pad"><span class="pad-symbol">🔵</span></button>
+      <button class="pad" data-i="1" aria-label="Green pad"><span class="pad-symbol">🟢</span></button>
+      <button class="pad" data-i="2" aria-label="Yellow pad"><span class="pad-symbol">🟡</span></button>
+      <button class="pad" data-i="3" aria-label="Red pad"><span class="pad-symbol">🔴</span></button>
+    </div>
+    <div id="overlay">
+      <div class="over-title" id="over-title">Game Over</div>
+      <div class="over-sub"  id="over-sub"></div>
+    </div>
+  </div>
+
+  <button id="btn-start" onclick="startGame()">Start Game</button>
+</div>
+
+<script>
+const pads      = Array.from(document.querySelectorAll('.pad'));
+const statusEl  = document.getElementById('status');
+const scoreEl   = document.getElementById('score');
+const bestEl    = document.getElementById('best');
+const roundEl   = document.getElementById('round');
+const timerFill = document.getElementById('timer-fill');
+const startBtn  = document.getElementById('btn-start');
+const overlay   = document.getElementById('overlay');
+const overTitle = document.getElementById('over-title');
+const overSub   = document.getElementById('over-sub');
+const seqDots   = document.getElementById('seq-dots');
+const diffLabel = document.getElementById('diff-label');
+
+let seq = [], playerSeq = [], round = 0, score = 0, best = 0;
+let accepting = false, timerInterval = null, timeLeft = 0, totalTime = 0;
+
+// Audio
+let actx = null;
+function tone(freq, dur = 0.2) {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.connect(g); g.connect(actx.destination);
+    o.frequency.value = freq; o.type = 'sine';
+    g.gain.setValueAtTime(0.22, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
+    o.start(); o.stop(actx.currentTime + dur);
+  } catch(e) {}
+}
+const FREQS = [261.63, 329.63, 392.00, 523.25];
+const FAIL_FREQ = 180;
+
+// Helpers
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function setStatus(msg, cls = '') {
+  statusEl.textContent = msg;
+  statusEl.className = cls;
+}
+
+function updateDots() {
+  seqDots.innerHTML = '';
+  seq.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i < playerSeq.length ? ' done' : i === playerSeq.length ? ' next' : '');
+    seqDots.appendChild(d);
+  });
+}
+
+function getDiffLabel(r) {
+  if (r <= 3)  return 'easy';
+  if (r <= 6)  return 'medium';
+  if (r <= 10) return 'hard';
+  return 'expert';
+}
+
+function flashPad(i, dur) {
+  return new Promise(res => {
+    pads[i].classList.add('lit');
+    tone(FREQS[i], dur / 1000);
+    setTimeout(() => { pads[i].classList.remove('lit'); setTimeout(res, 80); }, dur);
+  });
+}
+
+async function playSequence() {
+  accepting = false; stopTimer();
+  setStatus('watch carefully…', 'active');
+  startBtn.disabled = true;
+  overlay.classList.remove('show');
+  await delay(600);
+  const flashDur = Math.max(220, 440 - round * 14);
+  for (let idx of seq) {
+    await flashPad(idx, flashDur);
+    await delay(70);
+  }
+  beginInput();
+}
+
+function beginInput() {
+  playerSeq = [];
+  accepting = true;
+  updateDots();
+  const t = Math.max(4, 10 - Math.floor(round / 3));
+  totalTime = t; timeLeft = t;
+  setStatus('your turn — repeat the sequence', 'active');
+  startTimer();
+}
+
+function startTimer() {
+  clearInterval(timerInterval);
+  renderTimer();
+  timerInterval = setInterval(() => {
+    timeLeft = Math.max(0, timeLeft - 0.1);
+    renderTimer();
+    if (timeLeft <= 0) timesUp();
+  }, 100);
+}
+
+function stopTimer() { clearInterval(timerInterval); }
+
+function renderTimer() {
+  const pct = (timeLeft / totalTime) * 100;
+  timerFill.style.width = pct + '%';
+  timerFill.style.background = pct > 50 ? '#4ade80' : pct > 25 ? '#f59e0b' : '#ef4444';
+}
+
+function timesUp() {
+  stopTimer(); accepting = false;
+  setStatus('time\'s up!', 'wrong');
+  tone(FAIL_FREQ, 0.5);
+  setTimeout(endGame, 800);
+}
+
+async function handlePad(i) {
+  if (!accepting) return;
+  pads[i].classList.add('lit');
+  tone(FREQS[i]);
+  setTimeout(() => pads[i].classList.remove('lit'), 180);
+
+  playerSeq.push(i);
+  updateDots();
+
+  const pos = playerSeq.length - 1;
+  if (playerSeq[pos] !== seq[pos]) {
+    pads[i].classList.add('wrong');
+    setTimeout(() => pads[i].classList.remove('wrong'), 350);
+    accepting = false; stopTimer();
+    tone(FAIL_FREQ, 0.5);
+    setStatus('wrong!', 'wrong');
+    await delay(700);
+    endGame();
+    return;
+  }
+
+  if (playerSeq.length === seq.length) {
+    accepting = false; stopTimer();
+    score += round * 10;
+    scoreEl.textContent = score;
+    setStatus('correct! ✓', 'correct');
+    await delay(750);
+    nextRound();
+  }
+}
+
+function nextRound() {
+  round++;
+  seq.push(Math.floor(Math.random() * 4));
+  roundEl.textContent = round;
+  diffLabel.style.display = 'block';
+  diffLabel.textContent = getDiffLabel(round);
+  playSequence();
+}
+
+function startGame() {
+  score = 0; round = 0; seq = [];
+  scoreEl.textContent = '0';
+  roundEl.textContent = '—';
+  seqDots.innerHTML = '';
+  diffLabel.style.display = 'none';
+  overlay.classList.remove('show');
+  stopTimer(); timerFill.style.width = '100%';
+  startBtn.textContent = 'Restart';
+  nextRound();
+}
+
+function endGame() {
+  accepting = false; stopTimer();
+  if (score > best) { best = score; bestEl.textContent = best; }
+  startBtn.disabled = false;
+  startBtn.textContent = 'Play Again';
+
+  const msgs = [
+    [0,  'Keep at it — practice makes perfect!'],
+    [30, 'Not bad — try to beat your best!'],
+    [80, 'Nice memory! You\'re getting good at this.'],
+    [150,'Impressive! Your recall is sharp.'],
+    [300,'Outstanding! Memory of steel 🧠'],
+  ];
+  const msg = [...msgs].reverse().find(([min]) => score >= min)?.[1] ?? msgs[0][1];
+
+  overTitle.textContent = 'Game Over — ' + score + ' pts';
+  overSub.textContent   = msg;
+  overlay.classList.add('show');
+  setStatus('');
+}
+
+pads.forEach(p => p.addEventListener('click', () => handlePad(+p.dataset.i)));
+document.addEventListener('keydown', e => {
+  const map = {'1':0,'2':1,'3':2,'4':3,'q':0,'w':1,'a':2,'s':3};
+  if (map[e.key] !== undefined) handlePad(map[e.key]);
+});
+</script>
+</body>
+</html>
